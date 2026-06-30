@@ -60,8 +60,8 @@ async function sendReviewNotification(review) {
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Password",
   };
 }
 
@@ -145,6 +145,57 @@ export default async (request) => {
 
     return new Response(JSON.stringify({ ok: true, review: newReview, reviews }), {
       status: 201,
+      headers: { "Content-Type": "application/json", ...corsHeaders() },
+    });
+  }
+
+  if (request.method === "DELETE") {
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    const providedPassword = request.headers.get("x-admin-password");
+
+    if (!adminPassword) {
+      return new Response(JSON.stringify({ error: "Admin password not configured on server" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders() },
+      });
+    }
+    if (providedPassword !== adminPassword) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders() },
+      });
+    }
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders() },
+      });
+    }
+
+    const idToDelete = body.id;
+    if (!idToDelete) {
+      return new Response(JSON.stringify({ error: "Missing review id" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders() },
+      });
+    }
+
+    let reviews = [];
+    try {
+      reviews = (await store.get(KEY, { type: "json" })) || [];
+    } catch {
+      reviews = [];
+    }
+
+    const updated = reviews.filter(r => r.id !== idToDelete);
+    await store.setJSON(KEY, updated);
+
+    return new Response(JSON.stringify({ ok: true, reviews: updated }), {
+      status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders() },
     });
   }
