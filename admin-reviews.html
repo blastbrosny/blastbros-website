@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blast Bros — Review Admin</title>
+<style>
+  body{font-family:-apple-system,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;background:#0A1628;color:#fff;}
+  h1{font-size:1.5rem;}
+  .login-box{background:#0F2038;padding:24px;border-radius:12px;margin-bottom:24px;}
+  input[type="password"]{padding:10px;border-radius:8px;border:1px solid #333;width:200px;font-size:1rem;}
+  button{padding:10px 18px;border-radius:8px;border:none;background:#1E90FF;color:#fff;font-weight:700;cursor:pointer;margin-left:8px;}
+  button.delete-btn{background:#e74c3c;padding:6px 12px;font-size:0.85rem;margin-left:0;margin-top:8px;}
+  .review-card{background:#0F2038;border:1px solid #1E90FF33;border-radius:12px;padding:18px;margin-bottom:14px;}
+  .review-card .stars{color:#FFD23F;}
+  .review-card .meta{color:#aaa;font-size:0.85rem;margin-top:6px;}
+  #status{margin-top:10px;font-weight:700;}
+  #reviewList{display:none;}
+</style>
+</head>
+<body>
+  <h1>🗑️ Blast Bros — Review Admin</h1>
+
+  <div class="login-box">
+    <label>Admin Password: </label>
+    <input type="password" id="pwInput" placeholder="Enter password">
+    <button onclick="loadReviews()">Load Reviews</button>
+    <div id="status"></div>
+  </div>
+
+  <div id="reviewList"></div>
+
+<script>
+  const REVIEWS_ENDPOINT = '/api/reviews';
+
+  async function loadReviews(){
+    const status = document.getElementById('status');
+    const list = document.getElementById('reviewList');
+    status.textContent = 'Loading…';
+    status.style.color = '#fff';
+
+    try {
+      const res = await fetch(REVIEWS_ENDPOINT);
+      const data = await res.json();
+      const reviews = data.reviews || [];
+
+      if (reviews.length === 0) {
+        list.innerHTML = '<p>No reviews found.</p>';
+      } else {
+        list.innerHTML = reviews.map(r => `
+          <div class="review-card">
+            <div class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div>
+            <div><strong>${r.name}</strong> — ${r.service || ''}</div>
+            <p>"${r.text}"</p>
+            <div class="meta">ID: ${r.id} • ${new Date(r.createdAt).toLocaleString()}</div>
+            <button class="delete-btn" onclick="deleteReview('${r.id}')">Delete this review</button>
+          </div>
+        `).join('');
+      }
+
+      list.style.display = 'block';
+      status.textContent = `Loaded ${reviews.length} review(s).`;
+    } catch (err) {
+      status.textContent = 'Failed to load reviews.';
+      status.style.color = '#e74c3c';
+    }
+  }
+
+  async function deleteReview(id){
+    const password = document.getElementById('pwInput').value;
+    if (!password) {
+      alert('Enter the admin password first.');
+      return;
+    }
+    if (!confirm('Delete this review? This cannot be undone.')) return;
+
+    const status = document.getElementById('status');
+    try {
+      const res = await fetch(REVIEWS_ENDPOINT, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': password
+        },
+        body: JSON.stringify({ id })
+      });
+
+      if (res.status === 401) {
+        status.textContent = 'Wrong password.';
+        status.style.color = '#e74c3c';
+        return;
+      }
+      if (!res.ok) {
+        status.textContent = 'Delete failed.';
+        status.style.color = '#e74c3c';
+        return;
+      }
+
+      status.textContent = 'Deleted. Reloading list…';
+      status.style.color = '#5BC8F5';
+      loadReviews();
+    } catch (err) {
+      status.textContent = 'Error deleting review.';
+      status.style.color = '#e74c3c';
+    }
+  }
+</script>
+</body>
+</html>
