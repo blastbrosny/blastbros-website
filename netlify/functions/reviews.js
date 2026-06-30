@@ -13,6 +13,49 @@ import { getStore } from "@netlify/blobs";
 const STORE_NAME = "blastbros-reviews";
 const KEY = "all-reviews";
 const MAX_REVIEWS = 200; // safety cap so the blob never grows unbounded
+const NOTIFY_EMAIL = "heidijschuster@mac.com";
+
+async function sendReviewNotification(review) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("RESEND_API_KEY not set — skipping email notification.");
+    return;
+  }
+
+  const stars = "★".repeat(review.rating) + "☆".repeat(5 - review.rating);
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "Blast Bros Website <onboarding@resend.dev>",
+        to: [NOTIFY_EMAIL],
+        subject: `New review (${review.rating}★) from ${review.name}`,
+        html: `
+          <h2>New review on blastbrosny.com</h2>
+          <p><strong>Rating:</strong> ${stars}</p>
+          <p><strong>Name:</strong> ${review.name}</p>
+          <p><strong>Service:</strong> ${review.service || "(not specified)"}</p>
+          <p><strong>Review:</strong></p>
+          <p>${review.text}</p>
+          <hr>
+          <p style="color:#888;font-size:0.85em;">Submitted ${review.createdAt}</p>
+        `,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Resend email failed:", res.status, errText);
+    }
+  } catch (err) {
+    console.error("Error sending review notification email:", err);
+  }
+}
 
 function corsHeaders() {
   return {
@@ -95,6 +138,10 @@ export default async (request) => {
     if (reviews.length > MAX_REVIEWS) reviews = reviews.slice(0, MAX_REVIEWS);
 
     await store.setJSON(KEY, reviews);
+
+    // Fire off the email notification — don't let a failure here block the
+    // response, the review is already saved successfully at this point.
+    await sendReviewNotification(newReview);
 
     return new Response(JSON.stringify({ ok: true, review: newReview, reviews }), {
       status: 201,
