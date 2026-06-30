@@ -1,0 +1,9 @@
+{
+  "name": "blastbros-website",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Blast Bros mobile car wash, pressure washing & bin cleaning website",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
